@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MPS Aquaguard — Middelburg Primary School STEM</title>
+  <link rel="icon" type="image/png" href="school-logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- School-Themed Navy & Gold Header -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="crest-wrap">
+          <img src="school-logo.png" alt="Middelburg Primary School Crest" class="school-crest" />
+        </div>
+        <div>
+          <div class="school-kicker">MIDDELBURG PRIMARY SCHOOL • GRADE 6 STEM</div>
+          <h1>MPS Aquaguard</h1>
+          <p class="subtitle">Solar Dam Water Quality Monitor • <em>"Knowledge Conquers All"</em></p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <span id="modeBadge" class="pill pill-live">LIVE • CLOUD</span>
+        <span id="commsBadge" class="pill pill-neutral">Link: --</span>
+        <a id="downloadApkBtn" class="btn btn-navy-ghost" href="MPS-Aquaguard.apk" download="MPS-Aquaguard.apk" style="text-decoration:none">📱 Download Android App</a>
+        <button id="bleConnectBtn" class="btn btn-gold" type="button">🔵 Connect Bluetooth</button>
+        <button id="refreshBtn" class="btn btn-navy-ghost" type="button">↻ Refresh</button>
+        <button id="settingsBtn" class="btn btn-navy-ghost" type="button">⚙ Cloud / Demo</button>
+      </div>
+    </header>
+
+    <!-- Secure Context Notice (only shown if opened via file:// on desktop) -->
+    <div id="fileProtoBanner" class="notice-banner hidden">
+      <span><strong>Bluetooth Tip:</strong> Browsers block Web Bluetooth on <code>file://</code> links. Double-click <code>START_APP.bat</code> (opens <code>http://localhost:8765</code>) or install <strong>MPS Aquaguard.apk</strong> on your Android phone.</span>
+    </div>
+
+    <!-- Station Bluetooth Live Control Panel (Hotspot Pairing + Radio Power Controls) -->
+    <section id="blePanel" class="panel ble-panel hidden">
+      <div class="panel-head">
+        <div>
+          <h3>🔵 Station Live Control (Bluetooth Connected)</h3>
+          <p class="panel-sub" id="bleStatusText">Streaming live readings every 2.5s • Flash Queue: <strong id="bleQueueCount">0</strong> sample(s)</p>
+        </div>
+        <div class="ble-quick-actions">
+          <button id="bleSampleBtn" class="btn btn-primary" type="button">⚡ Sample &amp; Upload Now</button>
+          <button id="bleDisconnectBtn" class="btn btn-secondary" type="button">Disconnect BLE</button>
+        </div>
+      </div>
+
+      <div class="ble-grid">
+        <!-- Hotspot Pairing -->
+        <div class="ble-box">
+          <h4>📶 Pair Boat to Wi-Fi Hotspot</h4>
+          <p class="box-desc">Uses Wi-Fi whenever in range (great for home &amp; school STEM fair demos).</p>
+          <div class="pair-status" id="wifiPairStatus">Wi-Fi: Not paired</div>
+          <form id="wifiPairForm" class="pair-form">
+            <input id="hotspotSsid" type="text" placeholder="Hotspot / Wi-Fi Name (SSID)" required />
+            <input id="hotspotPass" type="password" placeholder="Hotspot Password" />
+            <div class="pair-btns">
+              <button class="btn btn-primary" type="submit">Pair &amp; Connect Hotspot</button>
+              <button id="clearWifiBtn" class="btn btn-secondary" type="button">Forget Wi-Fi</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Radio & Power Management -->
+        <div class="ble-box">
+          <h4>🔋 Station Radios &amp; Power Saver</h4>
+          <p class="box-desc">Turn off Wi-Fi &amp; Bluetooth before deploying to the dam so only Cellular 2G runs daily.</p>
+
+          <div class="toggles-list">
+            <label class="switch-row">
+              <span>Wi-Fi Radio (Use when available)</span>
+              <input id="togWifi" type="checkbox" checked />
+            </label>
+            <label class="switch-row">
+              <span>Bluetooth BLE (Live Demo / Pairing)</span>
+              <input id="togBle" type="checkbox" checked />
+            </label>
+            <label class="switch-row">
+              <span>2G Cellular GPRS (Daily Batch)</span>
+              <input id="togCell" type="checkbox" checked />
+            </label>
+            <label class="switch-row">
+              <span>Stay Awake in Instant Demo Mode</span>
+              <input id="togDemo" type="checkbox" checked />
+            </label>
+          </div>
+
+          <div class="radio-actions">
+            <button id="applyRadiosBtn" class="btn btn-secondary" type="button">Apply Radio Settings</button>
+            <button id="damModeBtn" class="btn btn-danger" type="button">🌊 Dam Field Mode (Radios OFF • Cellular Only)</button>
+          </div>
+          <p class="tiny-hint">To wake Bluetooth back up later from Dam Mode, hold the physical button on the boat for 2 seconds.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Overall Water Quality Indicator Banner -->
+    <section id="overallBanner" class="status-banner status-good">
+      <div class="status-main">
+        <span id="overallDot" class="status-dot"></span>
+        <div>
+          <div class="status-kicker">OVERALL DAM WATER QUALITY</div>
+          <h2 id="overallTitle">Analyzing telemetry...</h2>
+          <p id="overallSummary">Waiting for readings...</p>
+        </div>
+      </div>
+      <div class="status-meta">
+        <div><span>Latest Reading</span><strong id="lastSync">--</strong></div>
+        <div><span>History Loaded</span><strong id="sampleCount">--</strong></div>
+      </div>
+    </section>
+
+    <!-- Primary Live Metric Cards -->
+    <section class="cards-grid">
+      <article class="metric-card">
+        <div class="card-head">
+          <span class="card-label">Acidity / Alkalinity (pH)</span>
+          <span id="phBadge" class="quality-badge">--</span>
+        </div>
+        <div class="card-value"><span id="phVal">--</span> <small>pH</small></div>
+        <div class="card-sub" id="phSub">Safe Freshwater Range: 6.5 – 8.5 pH</div>
+        <div class="range-bar">
+          <div class="range-safe" style="left: 46.4%; width: 14.3%;"></div>
+          <div id="phMarker" class="range-marker" style="left: 50%;"></div>
+        </div>
+      </article>
+
+      <article class="metric-card">
+        <div class="card-head">
+          <span class="card-label">Total Dissolved Solids (TDS)</span>
+          <span id="tdsBadge" class="quality-badge">--</span>
+        </div>
+        <div class="card-value"><span id="tdsVal">--</span> <small>ppm (mg/L)</small></div>
+        <div class="card-sub" id="tdsSub">EC: -- µS/cm • WHO Good: &lt; 500 ppm</div>
+        <div class="range-bar">
+          <div class="range-safe" style="left: 0%; width: 50%;"></div>
+          <div id="tdsMarker" class="range-marker" style="left: 25%;"></div>
+        </div>
+      </article>
+
+      <article class="metric-card">
+        <div class="card-head">
+          <span class="card-label">Water Temperature (Optional)</span>
+          <span id="tempBadge" class="quality-badge">--</span>
+        </div>
+        <div class="card-value"><span id="tempVal">--</span> <small>°C</small></div>
+        <div class="card-sub" id="tempSub">-- °F • Used for TDS compensation</div>
+        <div class="range-bar">
+          <div class="range-safe" style="left: 25%; width: 45%;"></div>
+          <div id="tempMarker" class="range-marker" style="left: 50%;"></div>
+        </div>
+      </article>
+
+      <article class="metric-card">
+        <div class="card-head">
+          <span class="card-label">Solar Battery Pack (9.62 Wh)</span>
+          <span id="battBadge" class="quality-badge">--</span>
+        </div>
+        <div class="card-value"><span id="battPctVal">--</span> <small>%</small></div>
+        <div class="card-sub" id="battSub">Voltage: -- V • 1× 18650 Li-ion + Solar</div>
+        <div class="range-bar">
+          <div class="range-safe" style="left: 25%; width: 75%;"></div>
+          <div id="battMarker" class="range-marker" style="left: 80%;"></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- Historical Trend Charts Section -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Historical Water &amp; Power Trends</h3>
+          <p class="panel-sub">Shows ThingSpeak cloud history (Wi-Fi/GPRS) and live Bluetooth points during STEM demos.</p>
+        </div>
+        <div class="chart-controls">
+          <div class="segmented" role="group" aria-label="Chart Metric">
+            <button class="seg-btn active" data-metric="ph" type="button">pH</button>
+            <button class="seg-btn" data-metric="tds" type="button">TDS (ppm)</button>
+            <button class="seg-btn" data-metric="temp" type="button">Temp (°C)</button>
+            <button class="seg-btn" data-metric="batt" type="button">Battery (V)</button>
+          </div>
+          <select id="rangeSelect" aria-label="Sample Window">
+            <option value="8">Last 24h (8 readings)</option>
+            <option value="24">Last 3 Days (24 readings)</option>
+            <option value="56" selected>Last 7 Days (56 readings)</option>
+            <option value="200">All Loaded (up to 200)</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="chartStats" class="chart-stats">
+        <div><span>Min</span><strong id="statMin">--</strong></div>
+        <div><span>Average</span><strong id="statAvg">--</strong></div>
+        <div><span>Max</span><strong id="statMax">--</strong></div>
+        <div><span>Safe Band</span><strong id="statBand">--</strong></div>
+      </div>
+
+      <div class="chart-container">
+        <svg id="historyChart" viewBox="0 0 880 280" preserveAspectRatio="none" aria-label="Historical chart"></svg>
+        <div id="chartTooltip" class="chart-tooltip hidden"></div>
+      </div>
+    </section>
+
+    <!-- Technical Specifications & Grade 6 STEM Guide -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Technical Specifications &amp; Station Diagnostics</h3>
+          <p class="panel-sub">Sensor chemistry, probe health status, and active wireless link telemetry.</p>
+        </div>
+      </div>
+
+      <div class="specs-grid">
+        <div class="spec-box">
+          <h4>Water Chemistry &amp; Probe Status</h4>
+          <dl class="spec-list">
+            <div><dt>pH Value (PH V1.1)</dt><dd id="specPh">--</dd></div>
+            <div><dt>Neutral Deviation (Δ pH 7.0)</dt><dd id="specPhDelta">--</dd></div>
+            <div><dt>TDS Concentration (V1.0)</dt><dd id="specTds">--</dd></div>
+            <div><dt>Electrical Conductivity (EC)</dt><dd id="specEc">--</dd></div>
+            <div><dt>Water Classification</dt><dd id="specWaterClass">--</dd></div>
+            <div><dt>Water Temperature (DS18B20)</dt><dd id="specTemp">--</dd></div>
+            <div><dt>Active Probe Status</dt><dd id="specProbes">--</dd></div>
+          </dl>
+        </div>
+
+        <div class="spec-box">
+          <h4>Logging, Solar Power &amp; Comms</h4>
+          <dl class="spec-list">
+            <div><dt>Logging Schedule</dt><dd>Every 3h to LittleFS Flash (No RTC)</dd></div>
+            <div><dt>Cloud Upload Priority</dt><dd>Wi-Fi (when paired) → 2G GPRS Fallback</dd></div>
+            <div><dt>Battery Voltage &amp; SoC</dt><dd id="specBatt">--</dd></div>
+            <div><dt>Battery &amp; Solar Spec</dt><dd>9.62 Wh (2600 mAh) + TP4056 + 470 µF + 5V Solar</dd></div>
+            <div><dt>Last Sample Trigger</dt><dd id="specTrigger">--</dd></div>
+            <div><dt>Signal Strength</dt><dd id="specSignal">--</dd></div>
+            <div><dt>Hardware Platform</dt><dd>LILYGO BLYNK V1.4 (ESP32 + SIM800L + BLE)</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="stem-guide">
+        <h4>🧪 Grade 6 STEM Quick Science Guide</h4>
+        <div class="stem-cards">
+          <div><strong>What is pH?</strong> Measures how acidic (0–6) or alkaline/basic (8–14) water is. Healthy fish and dam life thrive around <strong>6.5 – 8.5 pH</strong>.</div>
+          <div><strong>What is TDS &amp; EC?</strong> Total Dissolved Solids (ppm) and Electrical Conductivity (µS/cm) count tiny dissolved minerals and salts in the water. Under <strong>500 ppm</strong> is clean freshwater.</div>
+          <div><strong>Why Turn Off Radios?</strong> Bluetooth and Wi-Fi stay off on the dam while the ESP32 sleeps for 3 hours at a time, letting one small battery and solar panel run for weeks!</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Historical Log Table -->
+    <section class="panel">
+      <div class="panel-head">
+        <div>
+          <h3>Historical Readings Log</h3>
+          <p class="panel-sub">Date-stamped readings (newest first) with trigger source and link info.</p>
+        </div>
+        <button id="exportCsvBtn" class="btn btn-secondary" type="button">⬇ Export CSV</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date &amp; Time</th>
+              <th>pH</th>
+              <th>TDS (ppm)</th>
+              <th>EC (µS/cm)</th>
+              <th>Temp (°C)</th>
+              <th>Battery</th>
+              <th>Trigger &amp; Link</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="logTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="school-footer">
+      <img src="school-logo.png" alt="Middelburg Primary School" class="footer-crest" />
+      <span><strong>MPS Aquaguard</strong> • Middelburg Primary School Grade 6 STEM Competition • <em>Knowledge Conquers All</em></span>
+    </footer>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modalTitle">Cloud &amp; Demo Source Settings</h3>
+        <button id="closeModalBtn" class="icon-btn" type="button" aria-label="Close">✕</button>
+      </div>
+      <form id="settingsForm">
+        <label class="toggle-row">
+          <input id="useDemoInput" type="checkbox" />
+          <span>Use Built-In 7-Day Demo Data (offline fallback)</span>
+        </label>
+
+        <div class="field-group">
+          <label for="channelIdInput">ThingSpeak Channel ID</label>
+          <input id="channelIdInput" type="text" placeholder="e.g. 3593739" />
+        </div>
+
+        <div class="field-group">
+          <label for="readKeyInput">ThingSpeak Read API Key <small>(leave blank if channel is Public)</small></label>
+          <input id="readKeyInput" type="text" placeholder="Optional for public channels" />
+        </div>
+
+        <div class="field-group">
+          <label for="stationNameInput">Station Label</label>
+          <input id="stationNameInput" type="text" placeholder="MPS Aquaguard — Dam Station" />
+        </div>
+
+        <div class="modal-actions">
+          <button id="cancelModalBtn" class="btn btn-secondary" type="button">Cancel</button>
+          <button class="btn btn-primary" type="submit">Save &amp; Apply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
